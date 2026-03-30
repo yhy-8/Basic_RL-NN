@@ -136,6 +136,7 @@ class ActorCritic(nn.Module):
 # 3. 训练函数
 # ==========================================
 def train_ppo(config):
+    os.makedirs(os.path.dirname(config.model_save_path), exist_ok=True)
     raw_env = gym.make(config.env_name)
     env = CustomPendulumWrapper(
         raw_env,
@@ -248,7 +249,7 @@ def train_ppo(config):
 def demo_ppo(config, input_model_path=None):
     model_path = input_model_path if input_model_path else config.model_save_path
     if not os.path.exists(model_path):
-        print(f"未找到模型: {model_path}")
+        print(f"错误: 找不到模型文件 {model_path}")
         return
 
     print(f"========== 开始 PPO 连续决策演示 ==========")

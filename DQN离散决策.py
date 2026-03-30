@@ -146,6 +146,7 @@ class ReplayBuffer:
 # 4. 训练过程
 # ==========================================
 def train_dqn(config: Config):
+    os.makedirs(os.path.dirname(config.model_save_path), exist_ok=True)
     print(f"========== 准备开始训练 ==========")
     print(f"正在使用的计算设备: [{config.device}]")
     if config.device.type == 'cuda':

@@ -258,6 +258,7 @@ class SACAgent:
 # 5. 训练封装函数 (train_sac)
 # ==========================================
 def train_sac(config):
+    os.makedirs(os.path.dirname(config.model_save_path), exist_ok=True)
     raw_env = gym.make(config.env_name)
     # 使用包装器接管训练初始化
     env = CustomPendulumWrapper(
@@ -326,6 +327,7 @@ def train_sac(config):
 def demo_sac(config, input_model_path):
     model_path = input_model_path if input_model_path else config.model_save_path
     if not os.path.exists(model_path):
+        print(f"错误: 找不到模型文件 {model_path}")
         return
 
     raw_env = gym.make(config.env_name, render_mode="human", max_episode_steps=config.max_steps)

@@ -95,8 +95,8 @@ class CartPoleSwingUpWrapper(gym.Wrapper):
         # 1. 角度奖励
         upright_reward = np.cos(theta)
 
-        # 2. 动能奖励：在底部时，鼓励它摇摆积攒能量
-        energy_reward = 0.1 * abs(theta_dot) if np.cos(theta) < 0 else 0.0
+        # 2. 动能奖励：在下方时，鼓励它摇摆积攒能量；在上方时，不鼓励它摇摆积攒能量
+        energy_reward = 0.1 * abs(theta_dot) if np.cos(theta) < 0 else -0.05 * abs(theta_dot)
 
         # 3. 位置惩罚
         center_penalty = (abs(x) / self.cfg.position_limit) * 0.1
@@ -159,6 +159,12 @@ class PPOAgent:
         self.buffer = RolloutBuffer()
         self.loss_fn = nn.MSELoss()
 
+    def get_value(self, state):
+        with torch.no_grad():
+            state = torch.FloatTensor(state).to(self.cfg.device)
+            value = self.policy.critic(state)
+        return value.item()
+
     def select_action(self, state):
         with torch.no_grad():
             state = torch.FloatTensor(state).to(self.cfg.device)
@@ -169,16 +175,16 @@ class PPOAgent:
         self.buffer.logprobs.append(action_logprob)
         return action.item()
 
-    def update(self):
+    def update(self, next_state_value=0.0):
         rewards = []
-        discounted_reward = 0
+        discounted_reward = next_state_value
         for reward, is_terminal in zip(reversed(self.buffer.rewards), reversed(self.buffer.is_terminals)):
-            if is_terminal: discounted_reward = 0
+            if is_terminal:
+                discounted_reward = 0
             discounted_reward = reward + (self.cfg.gamma * discounted_reward)
             rewards.insert(0, discounted_reward)
 
         rewards = torch.tensor(rewards, dtype=torch.float32).to(self.cfg.device)
-        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
 
         old_states = torch.squeeze(torch.stack(self.buffer.states, dim=0)).detach().to(self.cfg.device)
         old_actions = torch.squeeze(torch.stack(self.buffer.actions, dim=0)).detach().to(self.cfg.device)
@@ -250,8 +256,16 @@ def train_ppo(config):
         while True:
             action = agent.select_action(state)
             next_state, reward, terminated, truncated, _ = env.step(action)
+
             done = terminated or truncated
 
+            # 如果是超时截断，把 Critic 预测的未来价值直接加到这一步的奖励上
+            if truncated:
+                with torch.no_grad():
+                    bootstrap_value = agent.get_value(next_state)
+                reward += config.gamma * bootstrap_value
+
+            # 无论是因为什么结束，存入 buffer 的都是真实奖励或“加了料”的奖励
             agent.buffer.rewards.append(reward)
             agent.buffer.is_terminals.append(done)
 
@@ -260,9 +274,16 @@ def train_ppo(config):
             time_step += 1
             temp_step += 1
 
-            # 达到收集步数后更新网络
             if time_step % config.update_timestep == 0:
-                agent.update()
+                # 只要这回合结束了 (done=True)，不管是因为失败还是超时，传给 update 的都是 0
+                # 因为超时的价值已经在上面被折算进 reward 里面了！
+                if done:
+                    next_state_value = 0.0
+                else:
+                    # 只有当回合还在继续，正好由于达到了 update_timestep 截断当前批次时，才需要 Bootstrapping
+                    next_state_value = agent.get_value(next_state)
+
+                agent.update(next_state_value)
 
             if done:
                 break

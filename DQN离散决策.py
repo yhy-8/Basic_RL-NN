@@ -41,7 +41,7 @@ class Config:
 
         # 5. 训练参数
         self.num_episodes = 1500  # 最大训练回合数
-        self.save_path = "models/dqn_cartpole.pth" # 保存路径
+        self.model_save_path = "models/dqn_cartpole.pth" # 保存路径
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else
                                    "mps" if torch.backends.mps.is_available() else "cpu")
@@ -236,7 +236,7 @@ def train_dqn(config: Config):
 
         if len(recent_rewards) == recent_rewards.maxlen and avg_reward > best_avg_reward:
             best_avg_reward = avg_reward
-            best_model_path = config.save_path.replace(".pth", "_best.pth")
+            best_model_path = config.model_save_path.replace(".pth", "_best.pth")
             torch.save(policy_net.state_dict(), best_model_path)
             print(f"🌟 [新突破] Episode: {episode:4d} | 最近10局均分达 {avg_reward:.1f}，模型已备份至 {best_model_path}")
 
@@ -250,11 +250,11 @@ def train_dqn(config: Config):
 
     env.close()
 
-    torch.save(policy_net.state_dict(), config.save_path)
+    torch.save(policy_net.state_dict(), config.model_save_path)
     print(f"==================================")
     print(f"训练彻底结束！")
-    print(f"最终状态模型已保存至: {config.save_path}")
-    print(f"🏆 历史表现最好的模型保存在: {config.save_path.replace('.pth', '_best.pth')} (历史最高均分: {best_avg_reward:.1f})")
+    print(f"最终状态模型已保存至: {config.model_save_path}")
+    print(f"🏆 历史表现最好的模型保存在: {config.model_save_path.replace('.pth', '_best.pth')} (历史最高均分: {best_avg_reward:.1f})")
     print(f"==================================")
 
 
@@ -262,7 +262,7 @@ def train_dqn(config: Config):
 # 5. 演示过程
 # ==========================================
 def demo_dqn(config: Config, input_model_path: str = None):
-    model_path = input_model_path if input_model_path else config.save_path
+    model_path = input_model_path if input_model_path else config.model_save_path
 
     if not os.path.exists(model_path):
         print(f"错误: 找不到模型文件 {model_path}")

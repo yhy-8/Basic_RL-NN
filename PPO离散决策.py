@@ -88,7 +88,6 @@ class CartPoleSwingUpWrapper(gym.Wrapper):
         # 终止条件：只判断小车是否超出了我们自定义的极限距离
         terminated = bool(x < -self.cfg.position_limit or x > self.cfg.position_limit)
 
-        # 核心修复：更平滑的连续奖励函数，摒弃 if-else 突变
         # 1. 角度奖励：越向上越接近1，越向下越接近-1
         upright_reward = np.cos(theta)
 
@@ -180,7 +179,7 @@ class PPOAgent:
         return action.item()
 
     def update(self, next_state_value, next_done):
-        # 使用 GAE (广义优势估计) 替代简单的蒙特卡洛回报
+        # 使用 GAE (广义优势估计)
         returns = []
         advantages = []
         gae = 0

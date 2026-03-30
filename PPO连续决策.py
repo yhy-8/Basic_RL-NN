@@ -247,8 +247,8 @@ def train_ppo(config):
 # ==========================================
 def demo_ppo(config, input_model_path=None):
     model_path = input_model_path if input_model_path else config.model_save_path
-    if not os.path.exists(input_model_path):
-        print(f"未找到模型: {input_model_path}")
+    if not os.path.exists(model_path):
+        print(f"未找到模型: {model_path}")
         return
 
     print(f"========== 开始 PPO 连续决策演示 ==========")

@@ -24,7 +24,7 @@ class Config:
         # 2. 神经网络参数
         self.hidden_dim = 512  # 隐藏层神经元数量
         self.lr_actor = 0.0003  # 策略网络 (Actor) 学习率
-        self.lr_critic = 0.0003  # 价值网络 (Critic) 学习率
+        self.lr_critic = 0.001  # 价值网络 (Critic) 学习率
 
         # 3. PPO 核心参数
         self.gamma = 0.99  # 折扣因子
@@ -34,7 +34,7 @@ class Config:
 
         # 4. 训练与系统参数
         self.update_timestep = 2000  # 收集多少步(steps)的数据后进行一次 PPO 网络更新
-        self.num_episodes = 1000  # 最大训练回合数
+        self.num_episodes = 500  # 最大训练回合数
         self.model_save_path = "models/ppo_cartpole.pth"  # 保存路径
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else
@@ -88,16 +88,27 @@ class CartPoleSwingUpWrapper(gym.Wrapper):
         # 终止条件：只判断小车是否超出了我们自定义的极限距离
         terminated = bool(x < -self.cfg.position_limit or x > self.cfg.position_limit)
 
-        # 1. 角度奖励：越向上越接近1，越向下越接近-1
+        # 角度归一化 [-π, π]
+        theta = (theta + np.pi) % (2 * np.pi) - np.pi
+        state[2] = theta
+
+        # 0. 存活奖励：只要没出界，每一步都给 1 分
+        survival_reward = 1.0
+
+        # 1. 角度奖励：越向上越接近 1，越向下越接近 -1
         upright_reward = np.cos(theta)
 
-        # 2. 位置惩罚：鼓励保持在中央，越靠近边缘惩罚越大（平方项让边缘惩罚更剧烈）
-        center_penalty = 0.5 * (x / self.cfg.position_limit) ** 2
+        # 2. 位置惩罚：鼓励保持在中央，越靠近边缘惩罚越大
+        center_penalty = 0.1 * (x / self.cfg.position_limit)
 
         # 3. 速度惩罚：防止小车像疯了一样无限加速狂转，促使它在顶部悬停
         vel_penalty = 0.01 * (theta_dot ** 2)
 
-        reward = upright_reward - center_penalty - vel_penalty
+        # 将存活奖励加入总奖励中
+        reward = survival_reward + upright_reward - center_penalty - vel_penalty
+
+        if terminated:
+            reward += -10.0  # 边界惩罚
 
         return state, reward, terminated, truncated, info
 

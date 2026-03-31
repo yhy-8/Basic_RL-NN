@@ -40,7 +40,7 @@ class Config:
         self.eps_decay_steps = 50000  # 衰减步数 (在这个总步数时，衰减到约 36%)
 
         # 5. 训练参数
-        self.num_episodes = 1500  # 最大训练回合数
+        self.num_episodes = 1000  # 最大训练回合数
         self.model_save_path = "models/dqn_cartpole.pth" # 保存路径
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else
@@ -91,18 +91,30 @@ class CartPoleSwingUpWrapper(gym.Wrapper):
         state, _, _, truncated, info = self.env.step(action)
         x, x_dot, theta, theta_dot = state
 
-        # 1. 角度归一化 [-π, π] (DQN 特有的稳定化处理，放入 Wrapper 内部统一处理)
+        # 终止条件：只判断小车是否超出了我们自定义的极限距离
+        terminated = bool(x < -self.cfg.position_limit or x > self.cfg.position_limit)
+
+        # 角度归一化 [-π, π]
         theta = (theta + np.pi) % (2 * np.pi) - np.pi
         state[2] = theta
 
-        # 2. 修改终止条件
-        terminated = bool(x < -self.cfg.position_limit or x > self.cfg.position_limit)
+        # 0. 存活奖励：只要没出界，每一步都给 1 分
+        survival_reward = 1.0
 
-        # 3. 计算自定义奖励 (Reward Shaping)
+        # 1. 角度奖励：越向上越接近 1，越向下越接近 -1
+        upright_reward = np.cos(theta)
+
+        # 2. 位置惩罚：鼓励保持在中央，越靠近边缘惩罚越大
+        center_penalty = 0.1 * (x / self.cfg.position_limit)
+
+        # 3. 速度惩罚：防止小车像疯了一样无限加速狂转，促使它在顶部悬停
+        vel_penalty = 0.01 * (theta_dot ** 2)
+
+        # 总奖励
+        reward = survival_reward + upright_reward - center_penalty - vel_penalty
+
         if terminated:
-            reward = -10.0  # 边界惩罚
-        else:
-            reward = np.cos(theta) - 0.1 * abs(x)  # 起摆与居中奖励
+            reward += -10.0  # 边界惩罚
 
         return state, reward, terminated, truncated, info
 

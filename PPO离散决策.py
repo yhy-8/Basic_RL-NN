@@ -104,7 +104,7 @@ class CartPoleSwingUpWrapper(gym.Wrapper):
         # 3. 速度惩罚：防止小车像疯了一样无限加速狂转，促使它在顶部悬停
         vel_penalty = 0.01 * (theta_dot ** 2)
 
-        # 将存活奖励加入总奖励中
+        # 总奖励
         reward = survival_reward + upright_reward - center_penalty - vel_penalty
 
         if terminated:
